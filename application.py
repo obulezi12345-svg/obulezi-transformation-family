@@ -42,10 +42,10 @@ real_data = sp500['Returns'].dropna().values
 print(f"Successfully loaded {len(real_data)} empirical daily returns.\n")
 
 # -------------------------------------------------------------------------
-# 2. PROPOSED OBULEZI TRANSFORMATION & PROFILE LIKELIHOOD
+# 2. PROPOSED OBULEZI & NADARAJAH TRANSFORMATION & PROFILE LIKELIHOOD
 # -------------------------------------------------------------------------
 
-def obulezi_transform(x, lmbda):
+def obulezi_nadarajah_transform(x, lmbda):
     x = np.asarray(x, dtype=np.float64)
     sgn = np.sign(x)
     abs_x = np.abs(x)
@@ -58,7 +58,7 @@ def obulezi_transform(x, lmbda):
         w_val = np.real(lambertw(abs_lmbda * abs_x))
         return sgn * (1.0 / abs_lmbda) * w_val
 
-def obulezi_jacobian_log(x, lmbda):
+def obulezi_nadarajah_jacobian_log(x, lmbda):
     x = np.asarray(x, dtype=np.float64)
     abs_x = np.abs(x)
     if np.isclose(lmbda, 0.0):
@@ -75,18 +75,18 @@ def obulezi_jacobian_log(x, lmbda):
         log_j[mask] = np.log(w_val[mask]) - np.log(abs_lmbda * abs_x[mask] * (1.0 + w_val[mask]))
         return log_j
 
-def profile_log_lik_obulezi(lmbda, x):
+def profile_log_lik_obulezi_nadarajah(lmbda, x):
     n = len(x)
-    y = obulezi_transform(x, lmbda)
+    y = obulezi_nadarajah_transform(x, lmbda)
     y_var = np.var(y, ddof=0)
     if y_var <= 1e-12 or np.isnan(y_var) or np.isinf(y_var):
         return 1e10
-    log_j = obulezi_jacobian_log(x, lmbda)
+    log_j = obulezi_nadarajah_jacobian_log(x, lmbda)
     return -(-0.5 * n * np.log(2 * np.pi) - 0.5 * n * np.log(y_var) - 0.5 * n + np.sum(log_j))
 
-def fit_obulezi(x):
-    res = minimize_scalar(profile_log_lik_obulezi, bounds=(-30.0, 30.0), args=(x,), method='bounded')
-    return obulezi_transform(x, res.x)
+def fit_obulezi_nadarajah(x):
+    res = minimize_scalar(profile_log_lik_obulezi_nadarajah, bounds=(-30.0, 30.0), args=(x,), method='bounded')
+    return obulezi_nadarajah_transform(x, res.x)
 
 # -------------------------------------------------------------------------
 # 3. TABLE 1 TRANSFORMATION FUNCTIONS
@@ -160,7 +160,7 @@ transformations = {
     'Bayesian Power (Shifted)': transform_bayesian_power,
     'Central Normalizing (Quantile)': transform_central_normalizing,
     'Modified Non-Negative (Shifted)': transform_modified_non_negative,
-    'Obulezi (Proposed)': fit_obulezi
+    'Obulezi & Nadarajah (Proposed)': fit_obulezi_nadarajah
 }
 
 # -------------------------------------------------------------------------
@@ -225,14 +225,14 @@ fig1, axes1 = setup_grid()
 for i, name in enumerate(all_keys):
     ax = axes1[i]
     osm, osr = stats.probplot(std_dict[name], fit=False)
-    color = 'darkred' if 'Obulezi' in name else ('navy' if 'Central' in name else 'steelblue')
+    color = 'darkred' if 'Obulezi & Nadarajah' in name else ('navy' if 'Central' in name else 'steelblue')
 
     ax.scatter(osm, osr, color=color, alpha=0.5, s=8)
     ax.plot([-4, 4], [-4, 4], 'k--', linewidth=1.0)
 
     ax.set_xlim(-4.2, 4.2)
     ax.set_ylim(-4.2, 4.2)
-    ax.set_title(name, fontweight='bold' if 'Obulezi' in name else 'normal')
+    ax.set_title(name, fontweight='bold' if 'Obulezi & Nadarajah' in name else 'normal')
     ax.grid(True, linestyle=':', alpha=0.5)
     if i % 4 == 0: ax.set_ylabel('Sample Quantiles')
     if i >= 10: ax.set_xlabel('Theoretical Quantiles')
@@ -245,13 +245,13 @@ finalize_and_save(fig1, axes1, 'all_transformations_qqplots')
 fig2, axes2 = setup_grid()
 for i, name in enumerate(all_keys):
     ax = axes2[i]
-    color = 'darkred' if 'Obulezi' in name else ('navy' if 'Central' in name else 'steelblue')
+    color = 'darkred' if 'Obulezi & Nadarajah' in name else ('navy' if 'Central' in name else 'steelblue')
 
     sns.kdeplot(std_dict[name], ax=ax, color=color, linewidth=1.5)
     ax.plot(x_ref, norm_pdf, 'k--', linewidth=1.0)
 
     ax.set_xlim(-4.2, 4.2)
-    ax.set_title(name, fontweight='bold' if 'Obulezi' in name else 'normal')
+    ax.set_title(name, fontweight='bold' if 'Obulezi & Nadarajah' in name else 'normal')
     ax.grid(True, linestyle=':', alpha=0.5)
     if i % 4 == 0: ax.set_ylabel('Density')
     if i >= 10: ax.set_xlabel('Standardized Value ($z$)')
@@ -264,7 +264,7 @@ finalize_and_save(fig2, axes2, 'all_transformations_kde')
 fig3, axes3 = setup_grid()
 for i, name in enumerate(all_keys):
     ax = axes3[i]
-    color = 'darkred' if 'Obulezi' in name else ('navy' if 'Central' in name else 'steelblue')
+    color = 'darkred' if 'Obulezi & Nadarajah' in name else ('navy' if 'Central' in name else 'steelblue')
 
     sorted_data = np.sort(std_dict[name])
     y_ecdf = np.arange(1, len(sorted_data) + 1) / len(sorted_data)
@@ -274,7 +274,7 @@ for i, name in enumerate(all_keys):
 
     ax.set_xlim(-4.2, 4.2)
     ax.set_ylim(-0.05, 1.05)
-    ax.set_title(name, fontweight='bold' if 'Obulezi' in name else 'normal')
+    ax.set_title(name, fontweight='bold' if 'Obulezi & Nadarajah' in name else 'normal')
     ax.grid(True, linestyle=':', alpha=0.5)
     if i % 4 == 0: ax.set_ylabel('Cumulative Prob.')
     if i >= 10: ax.set_xlabel('Standardized Value ($z$)')
@@ -287,7 +287,7 @@ finalize_and_save(fig3, axes3, 'all_transformations_ecdf')
 fig4, ax4 = plt.subplots(figsize=(12, 6), dpi=300)
 df_box = pd.DataFrame(std_dict)
 
-palette = ['darkred' if 'Obulezi' in col else ('navy' if 'Central' in col else 'lightblue') for col in df_box.columns]
+palette = ['darkred' if 'Obulezi & Nadarajah' in col else ('navy' if 'Central' in col else 'lightblue') for col in df_box.columns]
 
 sns.boxplot(data=df_box, ax=ax4, palette=palette, orient='h', fliersize=2.5)
 ax4.axvline(x=0, color='black', linestyle='--', linewidth=1.0)
